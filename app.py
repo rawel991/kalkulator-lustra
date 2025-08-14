@@ -1,4 +1,3 @@
-import os
 import math
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
@@ -9,41 +8,10 @@ CORS(app)
 
 APP_PASSWORD = os.environ.get('APP_PASSWORD', 'domyslnehaslo123')
 
-# === KOD DIAGNOSTYCZNY ===
 @app.route('/')
 def index():
-    print("--- ZAPYTANIE DO STRONY GŁÓWNEJ (/) ---")
-    try:
-        # Sprawdzamy, gdzie aplikacja myśli, że jest
-        cwd = os.getcwd()
-        print(f"Aktualny folder roboczy: {cwd}")
-        
-        # Sprawdzamy, czy widzi folder templates i plik index.html
-        template_path = os.path.join(cwd, 'templates', 'index.html')
-        print(f"Szukam pliku szablonu w: {template_path}")
-        
-        if os.path.exists(template_path):
-            print("SUKCES: Plik index.html został znaleziony.")
-        else:
-            print("BŁĄD: Nie znaleziono pliku index.html w oczekiwanej lokalizacji!")
-            # Wypisz zawartość folderu głównego i folderu templates dla diagnostyki
-            print(f"Zawartość folderu '{cwd}': {os.listdir(cwd)}")
-            templates_dir = os.path.join(cwd, 'templates')
-            if os.path.exists(templates_dir):
-                print(f"Zawartość folderu '{templates_dir}': {os.listdir(templates_dir)}")
-        
-        return render_template('index.html')
-    except Exception as e:
-        print(f"!!! KRYTYCZNY BŁĄD w funkcji index: {e}")
-        return "Wystąpił wewnętrzny błąd serwera przy próbie renderowania strony.", 500
+    return render_template('index.html')
 
-# === PROSTY ADRES TESTOWY ===
-@app.route('/test')
-def test_route():
-    print("--- Zapytanie do /test ---")
-    return jsonify({"status": "ok", "message": "Serwer działa poprawnie!"})
-
-# Pozostałe funkcje bez zmian
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
@@ -53,19 +21,21 @@ def login():
 
 @app.route('/calculate', methods=['POST'])
 def calculate_bom():
-    # ... (cała logika bez zmian) ...
     try:
         data = request.json
         W, H, d = data['W'], data['H'], data['d']
         use_edge_layout = data['useEdgeLayout']
+        
         boundary = box(0, 0, W, H)
         pieces = []
         half_d = d / 2
+
         def process_rhombus(center_x, center_y):
             rhombus_coords = [(center_x, center_y - half_d), (center_x + half_d, center_y), (center_x, center_y + half_d), (center_x - half_d, center_y)]
             rhombus = Polygon(rhombus_coords)
             clipped_piece = rhombus.intersection(boundary)
             if not clipped_piece.is_empty and clipped_piece.area > 1e-6: pieces.append(clipped_piece)
+        
         if use_edge_layout:
             centering_offset_x = (W % d) / 2; centering_offset_y = (H % d) / 2
             layout_shift = d / 2; total_offset_x = centering_offset_x + layout_shift; total_offset_y = centering_offset_y + layout_shift
@@ -80,19 +50,58 @@ def calculate_bom():
                 for j in range(-num_tiles, num_tiles):
                     process_rhombus(i * d + offset_x, j * d + offset_y)
                     process_rhombus(i * d + offset_x + half_d, j * d + offset_y + half_d)
-        s = d / math.sqrt(2); full_area = s * s; tolerance = 1.5; grouped = {}; total_perimeter = 0; total_gross_area = 0
+
+        s = d / math.sqrt(2)
+        full_area = s * s
+        tolerance = 1.5
+        grouped = {}
+        total_perimeter = 0
+        total_gross_area = 0
+
+        cut_height_strip = (H % d) / 2
+        cut_width_strip = (W % d) / 2
+
         for p in pieces:
             bbox = get_bounding_box(p)
-            if bbox is None or bbox['width'] < 0.1 or bbox['height'] < 0.1: continue
-            piece_area = p.area; signature = ""; gross_area_for_piece = 0; perimeter_for_piece = 0
-            if abs(piece_area - full_area) < tolerance:
-                signature = f"Kwadrat {s:.1f} x {s:.1f} mm"; gross_area_for_piece = s * s; perimeter_for_piece = 4 * s
-            elif abs(piece_area - full_area / 2) < tolerance:
-                signature = f"Trójkąt {s:.1f} x {s:.1f} mm"; gross_area_for_piece = s * s; perimeter_for_piece = 4 * s
+            if bbox is None or bbox['width'] < 0.1 or bbox['height'] < 0.1:
+                continue
+            
+            piece_area = p.area
+            signature = ""
+            gross_area_for_piece = 0
+            perimeter_for_piece = 0
+
+            is_top_bottom_docinek = abs(bbox['height'] - cut_height_strip) < tolerance if cut_height_strip > tolerance else False
+            is_left_right_docinek = abs(bbox['width'] - cut_width_strip) < tolerance if cut_width_strip > tolerance else False
+
+            if is_top_bottom_docinek or is_left_right_docinek:
+                s_cut_v = cut_height_strip * math.sqrt(2)
+                s_cut_h = cut_width_strip * math.sqrt(2)
+                cut_dim = max(s_cut_v, s_cut_h)
+                signature = f"Mały trójkąt {cut_dim:.1f} x {cut_dim:.1f} mm"
+                gross_area_for_piece = cut_dim * cut_dim
+                perimeter_for_piece = 4 * cut_dim
             else:
-                signature = f"Docinek {bbox['width']:.1f} x {bbox['height']:.1f} mm"; gross_area_for_piece = bbox['width'] * bbox['height']; perimeter_for_piece = 2 * (bbox['width'] + bbox['height'])
-            grouped[signature] = grouped.get(signature, 0) + 1; total_gross_area += gross_area_for_piece; total_perimeter += perimeter_for_piece
-        return jsonify({"count": sum(grouped.values()), "area": total_gross_area / 1000000, "perimeter": total_perimeter / 1000, "grouped": grouped})
+                if abs(piece_area - full_area) < tolerance:
+                    signature = f"Kwadrat {s:.1f} x {s:.1f} mm"
+                elif abs(piece_area - full_area / 2) < tolerance:
+                    signature = f"Trójkąt {s:.1f} x {s:.1f} mm"
+                else:
+                    signature = f"Docinek {s:.1f} x {s:.1f} mm"
+                
+                gross_area_for_piece = s * s
+                perimeter_for_piece = 4 * s
+
+            grouped[signature] = grouped.get(signature, 0) + 1
+            total_gross_area += gross_area_for_piece
+            total_perimeter += perimeter_for_piece
+
+        return jsonify({
+            "count": sum(grouped.values()),
+            "area": total_gross_area / 1000000,
+            "perimeter": total_perimeter / 1000,
+            "grouped": grouped
+        })
     except Exception as e:
         print(f"Błąd w /calculate: {e}")
         return jsonify({"error": "Błąd po stronie serwera"}), 500

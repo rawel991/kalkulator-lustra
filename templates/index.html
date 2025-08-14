@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kalkulator Luster Karo</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="login-overlay">
+        <div class="login-box">
+            <h2>Logowanie</h2>
+            <input type="password" id="password" placeholder="Wprowadź hasło">
+            <button id="loginBtn">Zaloguj</button>
+            <p id="login-error" style="color: red; display: none;">Nieprawidłowe hasło.</p>
+        </div>
+    </div>
+
+    <div id="app-container" class="container" style="display: none;">
+        <div class="controls">
+            <h1>Projekt Lustra Karo</h1>
+            <div class="input-group"> <label for="width">Szerokość całkowita (W) [mm]</label> <input type="number" id="width" value="533"> </div>
+            <div class="input-group"> <label for="height">Wysokość całkowita (H) [mm]</label> <input type="number" id="height" value="1000"> </div>
+            <fieldset> <legend>Dopasuj wzór</legend> <div class="radio-group"> <input type="radio" id="fitWidth" name="fitAxis" value="width" checked> <label for="fitWidth">Do Szerokości</label> </div> <div class="radio-group"> <input type="radio" id="fitHeight" name="fitAxis" value="height"> <label for="fitHeight">Do Wysokości</label> </div> </fieldset>
+            <div class="input-group"> <label for="rhombusCount">Liczba pełnych rombów (n)</label> <input type="number" id="rhombusCount" value="2" min="1"> </div>
+            <fieldset> <legend>Styl Układu</legend> <div class="radio-group"> <input type="checkbox" id="edgeLayout" name="edgeLayout"> <label for="edgeLayout">Użyj układu krawędziowego</label> </div> </fieldset>
+            <div id="results"></div> <hr>
+            <h3>Kalkulacja Produkcyjna</h3>
+            <div class="price-calculator"> <div class="input-group"> <label for="priceM2">Kwota za m² materiału (zł)</label> <input type="number" id="priceM2" value="105.78"> </div> <div class="input-group"> <label for="priceMb">Kwota za mb szlifu (zł)</label> <input type="number" id="priceMb" value="12.18"> </div> </div>
+            <button id="calculateBomBtn">Oblicz Zestawienie i Cenę</button>
+            <div id="bomResults"></div>
+            <button id="downloadPdfBtn" style="margin-top: 20px; background-color: #00796b;">Pobierz PDF</button>
+        </div>
+        <div class="canvas-container"> <canvas id="mirrorCanvas"></canvas> </div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="/static/script.js"></script>
+</body>
+</html>
